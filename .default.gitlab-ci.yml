@@ -1,0 +1,183 @@
+include:
+  - template: 'Workflows/Branch-Pipelines.gitlab-ci.yml'
+
+variables:
+  INSTANCE_NAME: "bloodlords-core"
+  FVTT_VERSION: "9.269"
+  FVTT_SYSTEM_ID: "pf2e"
+  INSTANCE_DOMAIN: "https://${INSTANCE_NAME}.fvtt.sigil.info/"
+  PRODUCT_NAME: "Bloodlords - Zombie Feast"
+  DISCORD_WEBHOOK: "https://discord.com/api/webhooks/993988731138740284/7W_aJ3C34HZqIvGmb4OYoL_ZpwZOhVMEgxBxLOnZRMe2qZmd5gY6W8vOnCPwiWX5-0bK"
+
+stages:
+  - manual-instance-control
+  - generate-assets
+  - deploy
+  - bundle
+  - release
+  - manual-task-triggers
+
+create-instance:
+  variables:
+    GIT_STRATEGY: none
+  stage: manual-instance-control
+  script: 
+  - /fvtt/fvtt-management-scripts/create-instance.sh
+  - /fvtt/fvtt-management-scripts/notify.sh 'A new instance has been created'
+  environment:
+    name: FVTT Instance
+    url: "${INSTANCE_DOMAIN}"
+    on_stop: delete-instance
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "master" && $CI_COMMIT_TAG == null'
+      when: manual
+      allow_failure: true
+    - if: '$CI_COMMIT_BRANCH == "main" && $CI_COMMIT_TAG == null'
+      when: manual
+      allow_failure: true
+  tags: [ 'aws', 'fvtt-instance' ]
+
+pause-instance:
+  variables:
+    GIT_STRATEGY: none
+  stage: manual-instance-control
+  script:
+  - pm2 stop "${INSTANCE_NAME}"
+  - /fvtt/fvtt-management-scripts/notify.sh 'The instance has been paused'
+  rules:
+  - if: '$CI_COMMIT_BRANCH == "master" && $CI_COMMIT_TAG == null'
+    when: manual
+    allow_failure: true
+  - if: '$CI_COMMIT_BRANCH == "main" && $CI_COMMIT_TAG == null'
+    when: manual
+    allow_failure: true
+  tags: [ 'aws', 'fvtt-instance' ]
+
+unpause-instance:
+  variables:
+    GIT_STRATEGY: none
+  stage: manual-instance-control
+  script:
+  - pm2 start "${INSTANCE_NAME}"
+  - /fvtt/fvtt-management-scripts/notify.sh 'The instance has been unpaused'
+  rules:
+  - if: '$CI_COMMIT_BRANCH == "master" && $CI_COMMIT_TAG == null'
+    when: manual
+    allow_failure: true
+  - if: '$CI_COMMIT_BRANCH == "main" && $CI_COMMIT_TAG == null'
+    when: manual
+    allow_failure: true
+  tags: [ 'aws', 'fvtt-instance' ]
+
+delete-instance:
+  variables:
+    GIT_STRATEGY: none
+  stage: manual-instance-control
+  script:
+  - /fvtt/fvtt-management-scripts/backup-world.sh
+  - /fvtt/fvtt-management-scripts/delete-instance.sh
+  - /fvtt/fvtt-management-scripts/notify.sh 'World backed up and instance deleted'
+  environment:
+    name: FVTT Instance
+    url: "${INSTANCE_DOMAIN}"
+    action: stop
+  rules:
+  - if: '$CI_COMMIT_BRANCH == "master" && $CI_COMMIT_TAG == null'
+    when: manual
+    allow_failure: true
+  - if: '$CI_COMMIT_BRANCH == "main" && $CI_COMMIT_TAG == null'
+    when: manual
+    allow_failure: true
+  tags: [ 'aws', 'fvtt-instance' ]
+
+update-instance:
+  variables:
+    GIT_STRATEGY: none
+  stage: deploy
+  script:
+  - /fvtt/fvtt-management-scripts/update-instance.sh
+  - /fvtt/fvtt-management-scripts/notify.sh 'Instance has been updated'
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "master" && $CI_COMMIT_TAG == null'
+    - if: '$CI_COMMIT_BRANCH == "main" && $CI_COMMIT_TAG == null'
+  tags: [ 'aws', 'fvtt-instance' ]
+
+update-compendia:
+  variables:
+    GIT_STRATEGY: none
+  stage: manual-task-triggers
+  script:
+  - /fvtt/fvtt-management-scripts/update-compendia.sh
+  - /fvtt/fvtt-management-scripts/notify.sh 'Compendia have been updated'
+  rules:
+  - if: '$CI_COMMIT_BRANCH == "master" && $CI_COMMIT_TAG == null'
+    when: manual
+    allow_failure: true
+  - if: '$CI_COMMIT_BRANCH == "main" && $CI_COMMIT_TAG == null'
+    when: manual
+    allow_failure: true
+  tags: [ 'aws', 'fvtt-instance' ]
+
+backup-world:
+  variables:
+    GIT_STRATEGY: none
+  stage: manual-task-triggers
+  script:
+  - /fvtt/fvtt-management-scripts/backup-world.sh
+  - /fvtt/fvtt-management-scripts/notify.sh 'World has been backed up'
+  rules:
+  - if: '$CI_COMMIT_BRANCH == "master" && $CI_COMMIT_TAG == null'
+    when: manual
+    allow_failure: true
+  - if: '$CI_COMMIT_BRANCH == "main" && $CI_COMMIT_TAG == null'
+    when: manual
+    allow_failure: true
+  tags: [ 'aws', 'fvtt-instance' ]
+
+generate-named-index:
+  variables:
+    GIT_STRATEGY: none
+  stage: manual-task-triggers
+  script:
+  - /fvtt/fvtt-management-scripts/generate-named-index.sh
+  - /fvtt/fvtt-management-scripts/notify.sh 'Generated named index'
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "master" && $CI_COMMIT_TAG == null'
+      when: manual
+      allow_failure: true
+    - if: '$CI_COMMIT_BRANCH == "main" && $CI_COMMIT_TAG == null'
+      when: manual
+      allow_failure: true
+  tags: [ 'aws', 'fvtt-instance' ]
+
+
+bundle:
+  stage: bundle
+  image: alpine:latest
+  rules:
+    - if: $CI_COMMIT_TAG
+  script:
+    - |
+      apk add zip
+      apk add curl
+      apk add jq
+      mkdir ${CI_PROJECT_NAME}
+      cp -r assets packs styles scripts templates image-mapping.json jsconfig.json Changelog.md README.md ${CI_PROJECT_NAME}/.
+      rm -f ${CI_PROJECT_NAME}/scripts/import-html.js
+      cat module.json | jq --arg CI_COMMIT_TAG "$CI_COMMIT_TAG" 'del(.esmodules[] | select(. == "./scripts/import-html.js")) | .version=$CI_COMMIT_TAG | .protected=true' > ${CI_PROJECT_NAME}/module.json
+      zip -9r ${$CI_PROJECT_NAME}-${CI_COMMIT_TAG}.zip ./${CI_PROJECT_NAME}
+      curl --header "JOB-TOKEN: $CI_JOB_TOKEN" --upload-file ${$CI_PROJECT_NAME}-${CI_COMMIT_TAG}.zip ${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/${PACKAGENAME}/${CI_COMMIT_TAG}/${PACKAGENAME}-${CI_COMMIT_TAG}.zip
+      curl --header "JOB-TOKEN: $CI_JOB_TOKEN" --upload-file ${CI_PROJECT_NAME}/module.json ${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/${PACKAGENAME}/${CI_COMMIT_TAG}/module.json
+      curl --header "JOB-TOKEN: $CI_JOB_TOKEN" --upload-file ${CI_PROJECT_NAME}/README.md  ${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/${PACKAGENAME}/${CI_COMMIT_TAG}/README.md
+      curl --header "JOB-TOKEN: $CI_JOB_TOKEN" --upload-file ${CI_PROJECT_NAME}/Changelog.md  ${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/${PACKAGENAME}/${CI_COMMIT_TAG}/Changelog.md
+  tags: [ 'aws', 'docker' ]
+
+release:
+  stage: release
+  image: registry.gitlab.com/gitlab-org/release-cli:latest
+  rules:
+    - if: $CI_COMMIT_TAG
+  script:
+    - |
+      release-cli create --milestone $CI_COMMIT_TAG --name "${PRODUCT_NAME} Release $CI_COMMIT_TAG" --tag-name $CI_COMMIT_TAG --description Changelog.md 
+  tags: [ 'aws', 'docker' ]

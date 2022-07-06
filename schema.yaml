@@ -1,0 +1,19 @@
+subdomain: bloodlords-core
+fvtt-version: 9.269
+system-id: pf2e
+dependencies:
+- method: fvtt
+  manifest: https://github.com/foundryvtt/pf2e/releases/download/latest/system.json
+  type: system
+- method: fvtt
+  manifest: https://raw.githubusercontent.com/earlSt1/vtt-compendium-folders/09x-update/module.json
+  type: module
+- method: fvtt
+  manifest: https://github.com/ruipin/fvtt-lib-wrapper/releases/latest/download/module.json
+  type: module
+- method: git-public
+  url: https://github.com/fh-fvtt/zweihander.git
+  type: system
+- method: git-sigil
+  path: /kxfin/pf2e-ap181-zombie-feast.git
+  type: module
