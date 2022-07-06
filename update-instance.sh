@@ -27,11 +27,11 @@ sh -c 'x="{}"; x="${x##*/}"; x="${x%.git}"; git -C /fvtt/dependencies/$x pull' s
 
 yq '.dependencies[] | select( .method == "git-sigil" ) | select( .type == "system" ) | .path' ${LOCAL_REPO}/.fvtt-dependencies.yml | \
 xargs -I {} -d '\n' \
-sh -c 'x="{}"; x="${x##*/}"; x="${x%.git}"; git -C /fvtt/dependencies/$x remote set-url origin "{}" ; git -C /fvtt/dependencies/$x pull ; ' sh
+sh -c 'x="{}"; x="${x##*/}"; x="${x%.git}"; git -C /fvtt/dependencies/$x remote set-url origin "https://gitlab-ci-token:${CI_JOB_TOKEN}@${CI_SERVER_URL#https://}{}" ; git -C /fvtt/dependencies/$x pull ; ' sh
 
 yq '.dependencies[] | select( .method == "git-sigil" ) | select( .type == "module" ) | .path' ${LOCAL_REPO}/.fvtt-dependencies.yml | \
 xargs -I {} -d '\n' \
-sh -c 'x="{}"; x="${x##*/}"; x="${x%.git}"; git -C /fvtt/dependencies/$x remote set-url origin "{}" ; git -C /fvtt/dependencies/$x pull' sh
+sh -c 'x="{}"; x="${x##*/}"; x="${x%.git}"; git -C /fvtt/dependencies/$x remote set-url origin "https://gitlab-ci-token:${CI_JOB_TOKEN}@${CI_SERVER_URL#https://}{}" ; git -C /fvtt/dependencies/$x pull' sh
 
 #rm -rf ${LOCAL_REPO}/html
 #cp -r ${CI_PROJECT_DIR}/html ${LOCAL_REPO}/.
